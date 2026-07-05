@@ -1,0 +1,42 @@
+name: update-dashboard
+
+on:
+  schedule:
+    - cron: "7 * * * *" # 每小时第 7 分（避开整点高峰）
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Update tweet archive
+        run: python3 pipeline.py update
+      - name: Extract mentions
+        run: python3 pipeline.py build
+      - name: Fetch prices
+        run: python3 pipeline.py prices
+      - name: Build dashboard
+        run: python3 pipeline.py dashboard
+      - name: Stage site
+        run: mkdir -p site && cp data/dashboard.html site/index.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4
