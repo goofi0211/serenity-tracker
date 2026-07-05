@@ -1,0 +1,301 @@
+<title>Serenity Stock Tracker</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink2: #52514e;
+    --muted: #898781; --grid: #e1e0d9; --border: rgba(11,11,11,0.10);
+    --series: #2a78d6; --bull: #0ca30c; --bear: #d03b3b; --neut: #b5b3ab;
+    --delta-up: #006300; --delta-down: #d03b3b;
+    --bull-wash: rgba(12,163,12,0.12); --bear-wash: rgba(208,59,59,0.12);
+    --neut-wash: rgba(137,135,129,0.14);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink2: #c3c2b7;
+      --muted: #898781; --grid: #2c2c2a; --border: rgba(255,255,255,0.10);
+      --series: #3987e5; --bull: #0ca30c; --bear: #e66767; --neut: #6f6e68;
+      --delta-up: #0ca30c; --delta-down: #e66767;
+    }
+  }
+  :root[data-theme="light"] {
+    --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink2: #52514e;
+    --muted: #898781; --grid: #e1e0d9; --border: rgba(11,11,11,0.10);
+    --series: #2a78d6; --bull: #0ca30c; --bear: #d03b3b; --neut: #b5b3ab;
+    --delta-up: #006300; --delta-down: #d03b3b;
+  }
+  :root[data-theme="dark"] {
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink2: #c3c2b7;
+    --muted: #898781; --grid: #2c2c2a; --border: rgba(255,255,255,0.10);
+    --series: #3987e5; --bull: #0ca30c; --bear: #e66767; --neut: #6f6e68;
+    --delta-up: #0ca30c; --delta-down: #e66767;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--page); color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 14px; line-height: 1.5;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 24px 16px 48px; }
+  header h1 { font-size: 20px; margin: 0 0 2px; }
+  header .sub { color: var(--ink2); font-size: 13px; margin-bottom: 16px; }
+  header .sub a { color: var(--series); text-decoration: none; }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 18px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; }
+  .tile .v { font-size: 22px; font-weight: 650; }
+  .tile .k { font-size: 12px; color: var(--muted); }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+  .tabs { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 3px; }
+  .tabs button {
+    border: 0; background: transparent; color: var(--ink2); font: inherit; font-size: 13px;
+    padding: 5px 12px; border-radius: 7px; cursor: pointer;
+  }
+  .tabs button.on { background: var(--series); color: #fff; font-weight: 600; }
+  #q {
+    flex: 1; min-width: 160px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 8px 12px; color: var(--ink); font: inherit; font-size: 13px;
+  }
+  #q:focus { outline: 2px solid var(--series); outline-offset: -1px; }
+
+  .row {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    margin-bottom: 8px; overflow: hidden;
+  }
+  .row-head {
+    display: grid; grid-template-columns: 92px 1fr 150px 160px; gap: 12px; align-items: center;
+    padding: 10px 14px; cursor: pointer;
+  }
+  .row-head:hover { background: rgba(42,120,214,0.05); }
+  .sym { font-weight: 700; font-size: 15px; }
+  .sym .n { display: block; font-size: 11px; font-weight: 400; color: var(--muted); }
+  .stance-cell { min-width: 0; }
+  .sbar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; gap: 2px; margin-bottom: 3px; max-width: 260px; }
+  .sbar i { display: block; height: 100%; border-radius: 2px; }
+  .sbar .b { background: var(--bull); } .sbar .x { background: var(--bear); } .sbar .m { background: var(--neut); }
+  .scount { font-size: 12px; color: var(--ink2); font-variant-numeric: tabular-nums; }
+  .scount .b { color: var(--bull); font-weight: 600; } .scount .x { color: var(--bear); font-weight: 600; }
+  .spark { justify-self: end; }
+  .delta { justify-self: end; text-align: right; font-variant-numeric: tabular-nums; }
+  .delta .pct { font-weight: 650; font-size: 14px; }
+  .delta .since { font-size: 11px; color: var(--muted); display: block; }
+  .up { color: var(--delta-up); } .down { color: var(--delta-down); }
+
+  .detail { display: none; border-top: 1px solid var(--grid); padding: 14px; }
+  .row.open .detail { display: block; }
+  .chartbox { position: relative; margin-bottom: 12px; }
+  .chartbox svg { display: block; width: 100%; height: 120px; }
+  .tip {
+    position: absolute; pointer-events: none; display: none; background: var(--ink); color: var(--page);
+    font-size: 11px; padding: 3px 8px; border-radius: 6px; white-space: nowrap;
+    font-variant-numeric: tabular-nums; transform: translate(-50%, -130%); z-index: 5;
+  }
+  .mention { border-top: 1px solid var(--grid); padding: 9px 2px; }
+  .mention .meta { font-size: 12px; color: var(--muted); margin-bottom: 2px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .chip { font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; }
+  .chip.b { color: var(--bull); background: var(--bull-wash); }
+  .chip.x { color: var(--bear); background: var(--bear-wash); }
+  .chip.m { color: var(--ink2); background: var(--neut-wash); }
+  .mention .t { color: var(--ink); overflow-wrap: anywhere; }
+  .mention a { color: var(--series); text-decoration: none; font-size: 12px; }
+  .more { text-align: center; padding: 8px; }
+  .more button, .empty { border: 0; background: transparent; color: var(--series); font: inherit; cursor: pointer; }
+  .empty { color: var(--muted); text-align: center; padding: 40px 0; cursor: default; }
+  footer { margin-top: 28px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--grid); padding-top: 12px; }
+  @media (max-width: 640px) {
+    .row-head { grid-template-columns: 80px 1fr 90px; }
+    .spark { display: none; }
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Serenity Stock Tracker</h1>
+    <div class="sub">
+      追蹤 <a href="https://x.com/aleabitoreddit" target="_blank" rel="noopener">@aleabitoreddit</a>
+      公開貼文中的股票觀點 · 立場標籤為關鍵詞啟發式推斷，可能不準確 · 非投資建議
+    </div>
+  </header>
+
+  <div class="tiles" id="tiles"></div>
+
+  <div class="controls">
+    <div class="tabs" id="tabs" role="tablist"></div>
+    <input id="q" type="search" placeholder="搜尋 ticker，如 AXTI…" aria-label="搜尋 ticker">
+  </div>
+
+  <div id="list"></div>
+
+  <footer>
+    資料來源：@aleabitoreddit 公開 X 貼文存檔（GitHub: yan-labs/serenity-aleabitoreddit）與 Yahoo Finance 日線。
+    立場（看多／中性／看空）由關鍵詞規則自動推斷，可能不準確；所有結論請回到原始貼文核實。
+    本工具與 Serenity 本人無關，僅為公開貼文的研究介面，不構成投資建議。
+  </footer>
+</div>
+
+<script>
+/*__DATA__*/
+
+const STANCE = [
+  { key: 'b', label: '看多' },
+  { key: 'm', label: '中性' },
+  { key: 'x', label: '看空' },
+];
+const WINDOWS = [
+  { label: '📅 每日', short: '今日', days: 1 },
+  { label: '📆 週報 · 7天', short: '近 7 天', days: 7 },
+  { label: '📈 月度 · 28天', short: '近 28 天', days: 28 },
+  { label: '📊 季度 · 90天', short: '近 90 天', days: 90 },
+];
+let curWin = 3, query = '', openSym = null;
+
+const latestMs = Date.parse(DATA.latest.replace(' ', 'T') + ':00Z');
+function winCutoff(days) { return latestMs - days * 86400e3; }
+function mentionMs(m) { return Date.parse(m[2].replace(' ', 'T') + ':00Z'); }
+function esc(s) { return s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function fmt(n) { return n.toLocaleString('en-US'); }
+
+function aggregate(days) {
+  const cut = winCutoff(days), by = new Map();
+  for (const m of DATA.mentions) {
+    if (mentionMs(m) < cut) continue;
+    let a = by.get(m[0]);
+    if (!a) { a = { sym: m[0], n: 0, s: [0, 0, 0], rows: [] }; by.set(m[0], a); }
+    a.n++; a.s[m[3]]++; a.rows.push(m);
+  }
+  return [...by.values()].sort((p, q) => q.n - p.n || p.sym.localeCompare(q.sym));
+}
+
+function priceStats(sym) {
+  const p = DATA.prices[sym], t = DATA.tickers[sym];
+  if (!p || p.length < 2) return null;
+  let i0 = p.findIndex(r => r[0] >= t.first);
+  if (i0 < 0) i0 = 0;
+  const first = p[i0][1], last = p[p.length - 1][1];
+  return { series: p.slice(Math.max(0, i0 - 1)), pct: (last - first) / first * 100, last, since: t.first };
+}
+
+function sparkSvg(series, w, h) {
+  const vals = series.map(r => r[1]);
+  const min = Math.min(...vals), max = Math.max(...vals), span = (max - min) || 1;
+  const pts = series.map((r, i) =>
+    (i / (series.length - 1) * (w - 4) + 2).toFixed(1) + ',' +
+    ((1 - (r[1] - min) / span) * (h - 6) + 3).toFixed(1)).join(' ');
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">
+    <polyline points="${pts}" fill="none" stroke="var(--series)" stroke-width="2"
+      stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+}
+
+function detailChart(sym) {
+  const ps = priceStats(sym);
+  if (!ps) return '<div class="scount">無價格資料（僅為提及數較高的股票抓取價格）</div>';
+  const s = ps.series, vals = s.map(r => r[1]);
+  const min = Math.min(...vals), max = Math.max(...vals);
+  return `<div class="chartbox" data-sym="${sym}">
+    <div class="scount" style="margin-bottom:4px">自首次提及（${ps.since}）以來走勢 ·
+      最新 <b>${ps.last.toFixed(2)}</b> ·
+      <span class="${ps.pct >= 0 ? 'up' : 'down'}">${ps.pct >= 0 ? '↑' : '↓'} ${Math.abs(ps.pct).toFixed(1)}%</span>
+      <span style="float:right">高 ${max.toFixed(2)} / 低 ${min.toFixed(2)}</span></div>
+    ${sparkSvg(s, 900, 120)}
+    <div class="tip"></div></div>`;
+}
+
+function rowHtml(a) {
+  const t = DATA.tickers[a.sym] || {};
+  const total = a.n;
+  const seg = STANCE.map((st, i) => a.s[i] ?
+    `<i class="${st.key}" style="flex:${a.s[i]}"></i>` : '').join('');
+  const cnt = STANCE.map((st, i) => a.s[i] ?
+    `<span class="${st.key}">${st.label} ${a.s[i]}</span>` : '').filter(Boolean).join(' · ');
+  const ps = priceStats(a.sym);
+  const spark = ps ? sparkSvg(ps.series, 140, 36) : '';
+  const delta = ps
+    ? `<span class="pct ${ps.pct >= 0 ? 'up' : 'down'}">${ps.pct >= 0 ? '↑' : '↓'} ${Math.abs(ps.pct).toFixed(1)}%</span>
+       <span class="since">自 ${ps.since}</span>`
+    : `<span class="since">—</span>`;
+  return `<div class="row${openSym === a.sym ? ' open' : ''}" data-sym="${a.sym}">
+    <div class="row-head" role="button" aria-expanded="${openSym === a.sym}">
+      <div class="sym">$${a.sym}<span class="n">共 ${fmt(t.total || total)} 次提及</span></div>
+      <div class="stance-cell"><div class="sbar">${seg}</div><div class="scount">${cnt}</div></div>
+      <div class="spark">${spark}</div>
+      <div class="delta">${delta}</div>
+    </div>
+    <div class="detail">${openSym === a.sym ? detailHtml(a) : ''}</div>
+  </div>`;
+}
+
+function detailHtml(a, limit = 12) {
+  const rows = a.rows.slice(0, limit).map(m => `<div class="mention">
+      <div class="meta"><span class="chip ${STANCE[m[3]].key}">${STANCE[m[3]].label}</span>
+        <span>${m[2]} UTC</span>
+        <a href="https://x.com/aleabitoreddit/status/${m[1]}" target="_blank" rel="noopener">原文 ↗</a></div>
+      <div class="t">${esc(m[4])}</div></div>`).join('');
+  const more = a.rows.length > limit
+    ? `<div class="more"><button data-more="${a.sym}" data-limit="${limit}">顯示其餘 ${a.rows.length - limit} 筆 ↓</button></div>` : '';
+  return detailChart(a.sym) + rows + more;
+}
+
+function render() {
+  const days = WINDOWS[curWin].days;
+  const aggs = aggregate(days).filter(a => !query || a.sym.includes(query));
+  const cut = winCutoff(days);
+  const winMentions = DATA.mentions.filter(m => mentionMs(m) >= cut).length;
+  document.getElementById('tiles').innerHTML = [
+    [fmt(aggs.length), WINDOWS[curWin].short + '提及股票'],
+    [fmt(winMentions), WINDOWS[curWin].short + '提及次數'],
+    [fmt(DATA.totalTickers), '歷史追蹤股票'],
+    [DATA.latest + ' UTC', '最新貼文時間'],
+  ].map(([v, k]) => `<div class="tile"><div class="v">${v}</div><div class="k">${k}</div></div>`).join('');
+  document.getElementById('list').innerHTML = aggs.length
+    ? aggs.map(rowHtml).join('')
+    : '<div class="empty">此時間窗口內沒有符合的股票提及</div>';
+  bindCharts();
+}
+
+function bindCharts() {
+  document.querySelectorAll('.chartbox').forEach(box => {
+    const sym = box.dataset.sym, ps = priceStats(sym);
+    if (!ps) return;
+    const tip = box.querySelector('.tip'), svg = box.querySelector('svg');
+    svg.addEventListener('mousemove', e => {
+      const r = svg.getBoundingClientRect();
+      const i = Math.round((e.clientX - r.left) / r.width * (ps.series.length - 1));
+      const p = ps.series[Math.max(0, Math.min(ps.series.length - 1, i))];
+      tip.style.display = 'block';
+      tip.style.left = (e.clientX - r.left) + 'px';
+      tip.style.top = (e.clientY - r.top) + 'px';
+      tip.textContent = p[0] + ' · ' + p[1].toFixed(2);
+    });
+    svg.addEventListener('mouseleave', () => tip.style.display = 'none');
+  });
+}
+
+document.getElementById('tabs').innerHTML = WINDOWS.map((w, i) =>
+  `<button role="tab" data-i="${i}"${i === curWin ? ' class="on"' : ''}>${w.label}</button>`).join('');
+document.getElementById('tabs').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  curWin = +b.dataset.i;
+  document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x === b));
+  render();
+});
+document.getElementById('q').addEventListener('input', e => {
+  query = e.target.value.trim().toUpperCase().replace(/^\$/, '');
+  render();
+});
+document.getElementById('list').addEventListener('click', e => {
+  const more = e.target.closest('[data-more]');
+  if (more) {
+    const a = aggregate(WINDOWS[curWin].days).find(x => x.sym === more.dataset.more);
+    more.closest('.detail').innerHTML = detailHtml(a, a.rows.length);
+    bindCharts();
+    return;
+  }
+  const head = e.target.closest('.row-head'); if (!head) return;
+  const sym = head.parentElement.dataset.sym;
+  openSym = openSym === sym ? null : sym;
+  render();
+});
+
+render();
+</script>
